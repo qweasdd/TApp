@@ -52,7 +52,7 @@ namespace TApp
 
             Dl(dbcontext);
             dbcontext.SaveChanges();
-            Dl(dbcontext);
+            OneMoreTry(dbcontext);
             dbcontext.SaveChanges();
         }
 
@@ -90,6 +90,7 @@ namespace TApp
             counter = 0;
             taskList1 = new ConcurrentBag<Task<string>>();
             dlList = new ConcurrentBag<Download>();
+            retryList = new ConcurrentBag<RepositoryContent>();
             foreach (var item in bag)
             {
                 Dlsup(item, dbcontext );
@@ -111,18 +112,19 @@ namespace TApp
                 var task = webclient.DownloadStringTaskAsync(rc.DownloadUrl);
                 taskList1.Add(task);
                 
-                bool flag = false;
-                byte cter = 0;
+                
                 string tContent = "";
-                while (!flag && cter < 6)
+                try
                 {
-                    try
-                    {
-                        tContent = await task;
-                        flag = true;
-                    }
-                    catch { Thread.Sleep(2000); }
+                    tContent = await task;
                 }
+                catch
+                {
+                    retryList.Add(rc);
+                    counter++;
+                    return;
+                }
+                
 
                 if (dl == null)
                 {
@@ -143,6 +145,63 @@ namespace TApp
             }
         }
 
+        private void  OneMoreTry(DatabaseEntities dbcontext)
+        {
+            counter = 0;
+            taskList1 = new ConcurrentBag<Task<string>>();
+            dlList = new ConcurrentBag<Download>();
+            foreach (var item in retryList)
+            {
+                Retrysup(item, dbcontext);
+            }
+            while (counter < retryList.Count && !taskList1.All(x => x.IsCompleted))
+            { Thread.Sleep(100); }
+            dbcontext.Downloads.AddRange(dlList);
+        }
+
+        private async void Retrysup(RepositoryContent rc, DatabaseEntities dbcontext)
+        {
+            Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
+
+            using (var webclient = new WebClient())
+            {
+                webclient.DownloadStringCompleted += (s, e) => {
+                    Console.WriteLine(rc.Path);
+                    Console.WriteLine(dlList.Count);
+                    Console.WriteLine(taskList1.Count);
+                };
+                var task = webclient.DownloadStringTaskAsync(rc.DownloadUrl);
+                taskList1.Add(task);
+
+
+                string tContent = "Downloading failed";
+                try
+                {
+                    tContent = await task;
+                }
+                catch
+                {}
+
+
+                if (dl == null)
+                {
+
+                    dlList.Add(new Download()
+                    {
+                        RepositoryID = repId,
+                        Path = rc.Path,
+                        Content = tContent
+                    });
+
+                }
+                else
+                {
+                    if (dl.Content != tContent) dl.Content = tContent;
+                }
+                counter++;
+            }
+        }
+
         private GitHubClient client;
         private Dictionary<Language, string[]> dict;
         private string username;
@@ -152,6 +211,7 @@ namespace TApp
         private ConcurrentBag<RepositoryContent> bag;
         private ConcurrentBag<Task<string>> taskList1;
         private ConcurrentBag<Download> dlList;
+        private ConcurrentBag<RepositoryContent> retryList;
         private int counter;
     }
 }
