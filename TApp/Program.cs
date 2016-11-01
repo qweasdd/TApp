@@ -24,7 +24,6 @@ namespace TApp
             ghd.SetRepository(sourse.Url);
             ghd.lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
             ghd.Download(context);
-            context.SaveChanges();
             Console.WriteLine("done");
         }
         

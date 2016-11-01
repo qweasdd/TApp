@@ -17,7 +17,7 @@ namespace TApp
         public GHDownloader()
         {
             client = new GitHubClient(new ProductHeaderValue("test"));
-            client.Credentials = new Credentials("7d98e295f930ae8675211eeb33947a63c6c78548");
+            client.Credentials = new Credentials("");
             var bf = new BinaryFormatter();
             using (FileStream fs = new FileStream("conf.dat", System.IO.FileMode.Open))
             {
@@ -38,7 +38,7 @@ namespace TApp
         public void Download(DatabaseEntities dbcontext)
         {
             bag = new ConcurrentBag<RepositoryContent>();
-            SetBagOfContent("/");
+            SetBagOfContent();
 
             foreach (var item in dbcontext.Downloads)
             {
@@ -50,17 +50,17 @@ namespace TApp
                 }
             }
 
-            foreach (var item in bag)
-            {
-               Dl(item , dbcontext);
-            }
+            Dl(dbcontext);
+            dbcontext.SaveChanges();
+            Dl(dbcontext);
+            dbcontext.SaveChanges();
         }
 
-        public  void SetBagOfContent(string directory)
+        public  void SetBagOfContent()
         {
-            TaskList = new List<Task<IReadOnlyList<RepositoryContent>>>();
+            taskList = new ConcurrentBag<Task<IReadOnlyList<RepositoryContent>>>();
             SetBagSupp("/");
-            while (!TaskList.All(x => x.IsCompleted))
+            while (!taskList.All(x => x.IsCompleted))
             { Thread.Sleep(100); }
         }
         
@@ -68,7 +68,7 @@ namespace TApp
         private async void SetBagSupp(string directory)
         {
             var task = client.Repository.Content.GetAllContents(username, repository, directory);
-            TaskList.Add(task);
+            taskList.Add(task);
             var content = await task;
             foreach (var item in content)
             {
@@ -85,45 +85,73 @@ namespace TApp
             }
         }
 
-        private void Dl(RepositoryContent rc , DatabaseEntities dbcontext)
+        private void Dl(DatabaseEntities dbcontext)
         {
+            counter = 0;
+            taskList1 = new ConcurrentBag<Task<string>>();
+            dlList = new ConcurrentBag<Download>();
+            foreach (var item in bag)
+            {
+                Dlsup(item, dbcontext );
+            }
+            while (counter < bag.Count && !taskList1.All(x => x.IsCompleted))
+            { Thread.Sleep(100);}
+            dbcontext.Downloads.AddRange(dlList);
+         }
 
-            Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
-
-                using (var webclient = new WebClient())
-                {
-                    using (Stream data = webclient.OpenRead(rc.DownloadUrl))
-                    {
-                        using (StreamReader reader = new StreamReader(data))
-                        {
-                            string tContent =  reader.ReadToEnd();
-                            Console.WriteLine(rc.Path);
-                            if (dl == null)
-                            {
-                                dbcontext.Downloads.Add(new Download()
-                                {
-                                    RepositoryID = repId,
-                                    Path = rc.Path,
-                                    Content = tContent
-                                });
-                            }
-                            else
-                            {
-                                if (dl.Content != tContent) dl.Content = tContent;
-                            }
-                        }
-                    }
-               }
+        private async void Dlsup(RepositoryContent rc, DatabaseEntities dbcontext )
+        {
+           Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
             
-        }
+            using (var webclient = new WebClient())
+            {
+                webclient.DownloadStringCompleted += (s, e) => { Console.WriteLine(rc.Path);
+                    Console.WriteLine(dlList.Count);
+                    Console.WriteLine(taskList1.Count); };
+                var task = webclient.DownloadStringTaskAsync(rc.DownloadUrl);
+                taskList1.Add(task);
+                
+                bool flag = false;
+                byte cter = 0;
+                string tContent = "";
+                while (!flag && cter < 6)
+                {
+                    try
+                    {
+                        tContent = await task;
+                        flag = true;
+                    }
+                    catch { Thread.Sleep(2000); }
+                }
 
+                if (dl == null)
+                {
+                    
+                            dlList.Add(new Download()
+                            {
+                                RepositoryID = repId,
+                                Path = rc.Path,
+                                Content = tContent
+                            });
+                            
+                }
+                else
+                {
+                    if (dl.Content != tContent) dl.Content = tContent;
+                }
+                counter++;
+            }
+        }
 
         private GitHubClient client;
         private Dictionary<Language, string[]> dict;
         private string username;
         private string repository;
         private long repId;
-        private List<Task<IReadOnlyList<RepositoryContent>>> TaskList;
+        private ConcurrentBag<Task<IReadOnlyList<RepositoryContent>>> taskList;
         private ConcurrentBag<RepositoryContent> bag;
+        private ConcurrentBag<Task<string>> taskList1;
+        private ConcurrentBag<Download> dlList;
+        private int counter;
     }
 }
