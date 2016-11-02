@@ -94,7 +94,7 @@ namespace TApp
             {
                 Dlsup(item, dbcontext );
             }
-            while (counter < bag.Count)
+            while (counter < bag.Count + 1)
             { Thread.Sleep(100);}
             dbcontext.Downloads.AddRange(dlList);
          }
@@ -155,7 +155,7 @@ namespace TApp
             {
                 Retrysup(item, dbcontext);
             }
-            while (counter < retryList.Count)
+            while (counter < retryList.Count + 1)
             { Thread.Sleep(100); }
             dbcontext.Downloads.AddRange(dlList);
         }
