@@ -15,7 +15,7 @@ namespace TApp
             Console.ReadLine();
         }
 
-        private static void Work()
+        private  static void Work()
         {
             var context = new DatabaseEntities();
 
@@ -24,7 +24,7 @@ namespace TApp
             ghd.SetRepository(sourse.Url);
             ghd.lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
             ghd.Download(context);
-            Console.WriteLine("done");
+            
         }
         
     }

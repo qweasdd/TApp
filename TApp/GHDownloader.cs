@@ -26,7 +26,7 @@ namespace TApp
             bag = new ConcurrentBag<RepositoryContent>();
         }
 
-        public  void SetRepository(string uri)
+        public void SetRepository(string uri)
         {
             uri = uri.Substring(uri.LastIndexOf("/", uri.LastIndexOf("/") - 1));
             var t = uri.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
@@ -55,22 +55,23 @@ namespace TApp
             dbcontext.SaveChanges();
             OneMoreTry(dbcontext);
             dbcontext.SaveChanges();
+            Console.WriteLine("done");
         }
 
-        public  void SetBagOfContent()
+        public void SetBagOfContent()
         {
-            taskList = new ConcurrentBag<Task<IReadOnlyList<RepositoryContent>>>();
+            flagList = new ConcurrentBag<Flag>();
             SetBagSupp("/");
-            while (!taskList.All(x => x.IsCompleted))
+            while (!flagList.All(x => x.IsCompleted))
             { Thread.Sleep(100); }
         }
 
 
         private async void SetBagSupp(string directory)
         {
-            var task = client.Repository.Content.GetAllContents(username, repository, directory);
-            taskList.Add(task);
-            var content = await task;
+            Flag flag = new Flag();
+            flagList.Add(flag);
+            var content = await client.Repository.Content.GetAllContents(username, repository, directory);
             foreach (var item in content)
             {
                 if (item.Type == ContentType.File && item.DownloadUrl != null
@@ -84,6 +85,7 @@ namespace TApp
                     SetBagSupp(item.Path);
                 }
             }
+            flag.IsCompleted = true;
         }
         private void Dl(DatabaseEntities dbcontext)
         {
@@ -92,17 +94,17 @@ namespace TApp
             retryList = new ConcurrentBag<RepositoryContent>();
             foreach (var item in bag)
             {
-                Dlsup(item, dbcontext );
+                Dlsup(item, dbcontext);
             }
             while (counter < bag.Count + 1)
-            { Thread.Sleep(100);}
+            { Thread.Sleep(100); }
             dbcontext.Downloads.AddRange(dlList);
-         }
+        }
 
-        private async void Dlsup(RepositoryContent rc, DatabaseEntities dbcontext )
+        private async void Dlsup(RepositoryContent rc, DatabaseEntities dbcontext)
         {
-           Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
-            
+            Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
+
             using (var webclient = new WebClient())
             {
                 webclient.DownloadStringCompleted += (s, e) =>
@@ -110,10 +112,7 @@ namespace TApp
                     Console.WriteLine(rc.Path);
                     Console.WriteLine($"{counter} / {bag.Count}");
                 };
-                
-                
-                
-                
+
                 string tContent = "";
                 try
                 {
@@ -125,18 +124,18 @@ namespace TApp
                     counter++;
                     return;
                 }
-                
+
 
                 if (dl == null)
                 {
-                    
-                            dlList.Add(new Download()
-                            {
-                                RepositoryID = repId,
-                                Path = rc.Path,
-                                Content = tContent
-                            });
-                            
+
+                    dlList.Add(new Download()
+                    {
+                        RepositoryID = repId,
+                        Path = rc.Path,
+                        Content = tContent
+                    });
+
                 }
                 else
                 {
@@ -146,10 +145,10 @@ namespace TApp
             }
         }
 
-        private void  OneMoreTry(DatabaseEntities dbcontext)
+        private void OneMoreTry(DatabaseEntities dbcontext)
         {
             counter = 1;
-            
+
             dlList = new ConcurrentBag<Download>();
             foreach (var item in retryList)
             {
@@ -170,7 +169,7 @@ namespace TApp
                     Console.WriteLine(rc.Path);
                     Console.WriteLine($"{counter} / {retryList.Count}");
                 };
-                 
+
 
 
                 string tContent = "Downloading failed";
@@ -179,7 +178,7 @@ namespace TApp
                     tContent = await webclient.DownloadStringTaskAsync(rc.DownloadUrl); ;
                 }
                 catch
-                {}
+                { }
 
 
                 if (dl == null)
@@ -206,7 +205,7 @@ namespace TApp
         private string username;
         private string repository;
         private long repId;
-        private ConcurrentBag<Task<IReadOnlyList<RepositoryContent>>> taskList;
+        private ConcurrentBag<Flag> flagList;
         private ConcurrentBag<RepositoryContent> bag;
         private ConcurrentBag<Download> dlList;
         private ConcurrentBag<RepositoryContent> retryList;

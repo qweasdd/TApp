@@ -76,6 +76,7 @@
     <Compile Include="Download.cs">
       <DependentUpon>Model.tt</DependentUpon>
     </Compile>
+    <Compile Include="Flag.cs" />
     <Compile Include="GHDownloader.cs" />
     <Compile Include="Model.Context.cs">
       <AutoGen>True</AutoGen>
