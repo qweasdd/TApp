@@ -51,6 +51,7 @@ namespace TApp
             }
 
             Dl(dbcontext);
+            Console.WriteLine($"{retryList.Count} failed");
             dbcontext.SaveChanges();
             OneMoreTry(dbcontext);
             dbcontext.SaveChanges();
@@ -63,8 +64,8 @@ namespace TApp
             while (!taskList.All(x => x.IsCompleted))
             { Thread.Sleep(100); }
         }
-        
-    
+
+
         private async void SetBagSupp(string directory)
         {
             var task = client.Repository.Content.GetAllContents(username, repository, directory);
@@ -84,18 +85,16 @@ namespace TApp
                 }
             }
         }
-
         private void Dl(DatabaseEntities dbcontext)
         {
-            counter = 0;
-            taskList1 = new ConcurrentBag<Task<string>>();
+            counter = 1;
             dlList = new ConcurrentBag<Download>();
             retryList = new ConcurrentBag<RepositoryContent>();
             foreach (var item in bag)
             {
                 Dlsup(item, dbcontext );
             }
-            while (counter < bag.Count && !taskList1.All(x => x.IsCompleted))
+            while (counter < bag.Count)
             { Thread.Sleep(100);}
             dbcontext.Downloads.AddRange(dlList);
          }
@@ -106,17 +105,19 @@ namespace TApp
             
             using (var webclient = new WebClient())
             {
-                webclient.DownloadStringCompleted += (s, e) => { Console.WriteLine(rc.Path);
-                    Console.WriteLine(dlList.Count);
-                    Console.WriteLine(taskList1.Count); };
-                var task = webclient.DownloadStringTaskAsync(rc.DownloadUrl);
-                taskList1.Add(task);
+                webclient.DownloadStringCompleted += (s, e) =>
+                {
+                    Console.WriteLine(rc.Path);
+                    Console.WriteLine($"{counter} / {bag.Count}");
+                };
+                
+                
                 
                 
                 string tContent = "";
                 try
                 {
-                    tContent = await task;
+                    tContent = await webclient.DownloadStringTaskAsync(rc.DownloadUrl);
                 }
                 catch
                 {
@@ -147,14 +148,14 @@ namespace TApp
 
         private void  OneMoreTry(DatabaseEntities dbcontext)
         {
-            counter = 0;
-            taskList1 = new ConcurrentBag<Task<string>>();
+            counter = 1;
+            
             dlList = new ConcurrentBag<Download>();
             foreach (var item in retryList)
             {
                 Retrysup(item, dbcontext);
             }
-            while (counter < retryList.Count && !taskList1.All(x => x.IsCompleted))
+            while (counter < retryList.Count)
             { Thread.Sleep(100); }
             dbcontext.Downloads.AddRange(dlList);
         }
@@ -167,17 +168,15 @@ namespace TApp
             {
                 webclient.DownloadStringCompleted += (s, e) => {
                     Console.WriteLine(rc.Path);
-                    Console.WriteLine(dlList.Count);
-                    Console.WriteLine(taskList1.Count);
+                    Console.WriteLine($"{counter} / {retryList.Count}");
                 };
-                var task = webclient.DownloadStringTaskAsync(rc.DownloadUrl);
-                taskList1.Add(task);
+                 
 
 
                 string tContent = "Downloading failed";
                 try
                 {
-                    tContent = await task;
+                    tContent = await webclient.DownloadStringTaskAsync(rc.DownloadUrl); ;
                 }
                 catch
                 {}
@@ -209,7 +208,6 @@ namespace TApp
         private long repId;
         private ConcurrentBag<Task<IReadOnlyList<RepositoryContent>>> taskList;
         private ConcurrentBag<RepositoryContent> bag;
-        private ConcurrentBag<Task<string>> taskList1;
         private ConcurrentBag<Download> dlList;
         private ConcurrentBag<RepositoryContent> retryList;
         private int counter;
