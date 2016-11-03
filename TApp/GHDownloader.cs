@@ -40,13 +40,12 @@ namespace TApp
         
         public void Download()
         {
-            foreach (Sourse sourse in dbcontext.Sourses)
+            foreach (Sourse sourse in dbcontext.Sourses.ToList())
             {
                 SetRepository(sourse.Url);
                 lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
                 RepositoryDownload();
             }
-            dbcontext.SaveChanges();
             Console.WriteLine("The End");
         }
 
@@ -62,6 +61,7 @@ namespace TApp
 
         private void RepositoryDownload()
         {
+            Console.WriteLine($"{username}/{repository} is starting download");
             bag = new ConcurrentBag<RepositoryContent>();
             SetBagOfContent();
 
@@ -77,9 +77,11 @@ namespace TApp
 
             DownloadContent();
             Console.WriteLine($"{retryList.Count} failed");
+            dbcontext.SaveChanges();
             RetryDownloadContent();
+            dbcontext.SaveChanges();
             Console.WriteLine($"{username}/{repository} downloaded");
-        }
+         }
 
         public void SetBagOfContent()
         {
