@@ -12,22 +12,47 @@ namespace TApp
 {
     public class GHDownloader
     {
-        public Language lang { get; set; }
+        private GitHubClient client;
+        private Dictionary<Language, string[]> dict;
+        private string username;
+        private string repository;
+        private long repId;
+        private ConcurrentBag<Flag> flagList;
+        private ConcurrentBag<RepositoryContent> bag;
+        private ConcurrentBag<Download> dlList;
+        private ConcurrentBag<RepositoryContent> retryList;
+        private int counter;
+        private Language lang;
+        private DatabaseEntities dbcontext;
 
-        public GHDownloader()
+        public GHDownloader(DatabaseEntities dbc)
         {
             client = new GitHubClient(new ProductHeaderValue("test"));
-            client.Credentials = new Credentials("");
+            client.Credentials = new Credentials("cfdf657c42520bc275e43cc53417cf14fa0ee473");
             var bf = new BinaryFormatter();
             using (FileStream fs = new FileStream("conf.dat", System.IO.FileMode.Open))
             {
                 dict = (Dictionary<Language, string[]>)bf.Deserialize(fs);
             }
             bag = new ConcurrentBag<RepositoryContent>();
+            dbcontext = dbc;
+        }
+        
+        public void Download()
+        {
+            foreach (Sourse sourse in dbcontext.Sourses)
+            {
+                SetRepository(sourse.Url);
+                lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
+                RepositoryDownload();
+            }
+            dbcontext.SaveChanges();
+            Console.WriteLine("The End");
         }
 
-        public void SetRepository(string uri)
+        private void SetRepository(string uri)
         {
+            uri = uri.TrimEnd('/');
             uri = uri.Substring(uri.LastIndexOf("/", uri.LastIndexOf("/") - 1));
             var t = uri.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             username = t[0];
@@ -35,7 +60,7 @@ namespace TApp
             repId = client.Repository.Get(username, repository).GetAwaiter().GetResult().Id;
         }
 
-        public void Download(DatabaseEntities dbcontext)
+        private void RepositoryDownload()
         {
             bag = new ConcurrentBag<RepositoryContent>();
             SetBagOfContent();
@@ -50,24 +75,23 @@ namespace TApp
                 }
             }
 
-            Dl(dbcontext);
+            DownloadContent();
             Console.WriteLine($"{retryList.Count} failed");
-            dbcontext.SaveChanges();
-            OneMoreTry(dbcontext);
-            dbcontext.SaveChanges();
-            Console.WriteLine("done");
+            RetryDownloadContent();
+            Console.WriteLine($"{username}/{repository} downloaded");
         }
 
         public void SetBagOfContent()
         {
             flagList = new ConcurrentBag<Flag>();
-            SetBagSupp("/");
+            SBCHelper("/");
+
             while (!flagList.All(x => x.IsCompleted))
-            { Thread.Sleep(100); }
+            { Thread.Sleep(1000); }
+
         }
 
-
-        private async void SetBagSupp(string directory)
+        private async void SBCHelper(string directory)
         {
             Flag flag = new Flag();
             flagList.Add(flag);
@@ -82,26 +106,27 @@ namespace TApp
                 else
                 if (item.Type == ContentType.Dir)
                 {
-                    SetBagSupp(item.Path);
+                    SBCHelper(item.Path);
                 }
             }
             flag.IsCompleted = true;
         }
-        private void Dl(DatabaseEntities dbcontext)
+        
+        private void DownloadContent()
         {
             counter = 1;
             dlList = new ConcurrentBag<Download>();
             retryList = new ConcurrentBag<RepositoryContent>();
             foreach (var item in bag)
             {
-                Dlsup(item, dbcontext);
+                DCHelper(item);
             }
             while (counter < bag.Count + 1)
             { Thread.Sleep(100); }
             dbcontext.Downloads.AddRange(dlList);
         }
 
-        private async void Dlsup(RepositoryContent rc, DatabaseEntities dbcontext)
+        private async void DCHelper(RepositoryContent rc)
         {
             Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
 
@@ -128,14 +153,12 @@ namespace TApp
 
                 if (dl == null)
                 {
-
                     dlList.Add(new Download()
                     {
                         RepositoryID = repId,
                         Path = rc.Path,
                         Content = tContent
                     });
-
                 }
                 else
                 {
@@ -145,21 +168,21 @@ namespace TApp
             }
         }
 
-        private void OneMoreTry(DatabaseEntities dbcontext)
+        private void RetryDownloadContent()
         {
             counter = 1;
 
             dlList = new ConcurrentBag<Download>();
             foreach (var item in retryList)
             {
-                Retrysup(item, dbcontext);
+                RDCHelper(item);
             }
             while (counter < retryList.Count + 1)
             { Thread.Sleep(100); }
             dbcontext.Downloads.AddRange(dlList);
         }
 
-        private async void Retrysup(RepositoryContent rc, DatabaseEntities dbcontext)
+        private async void RDCHelper(RepositoryContent rc)
         {
             Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
 
@@ -200,15 +223,5 @@ namespace TApp
             }
         }
 
-        private GitHubClient client;
-        private Dictionary<Language, string[]> dict;
-        private string username;
-        private string repository;
-        private long repId;
-        private ConcurrentBag<Flag> flagList;
-        private ConcurrentBag<RepositoryContent> bag;
-        private ConcurrentBag<Download> dlList;
-        private ConcurrentBag<RepositoryContent> retryList;
-        private int counter;
     }
 }

@@ -18,15 +18,9 @@ namespace TApp
         private  static void Work()
         {
             var context = new DatabaseEntities();
-
-            foreach (var sourse in context.Sourses)
-            {
-                GHDownloader ghd = new GHDownloader();
-                ghd.SetRepository(sourse.Url);
-                ghd.lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
-                ghd.Download(context);
-            }
-        }
+            GHDownloader ghd = new GHDownloader(context);
+            ghd.Download();
+         }
         
     }
 }
