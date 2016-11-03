@@ -19,12 +19,13 @@ namespace TApp
         {
             var context = new DatabaseEntities();
 
-            Sourse sourse = context.Sourses.First();
-            GHDownloader ghd = new GHDownloader();
-            ghd.SetRepository(sourse.Url);
-            ghd.lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
-            ghd.Download(context);
-            
+            foreach (var sourse in context.Sourses)
+            {
+                GHDownloader ghd = new GHDownloader();
+                ghd.SetRepository(sourse.Url);
+                ghd.lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
+                ghd.Download(context);
+            }
         }
         
     }
