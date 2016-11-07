@@ -27,7 +27,7 @@ namespace TApp
         public GHDownloader(DatabaseEntities dbc)
         {
             client = new GitHubClient(new ProductHeaderValue("test"));
-            client.Credentials = new Credentials("e17fc407563e1b9aae7a5b6be31b950e1ab48d1a");
+            client.Credentials = new Credentials("");
             var bf = new BinaryFormatter();
             
             bag = new ConcurrentBag<RepositoryContent>();
