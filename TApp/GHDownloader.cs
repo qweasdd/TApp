@@ -13,27 +13,23 @@ namespace TApp
     public class GHDownloader
     {
         private GitHubClient client;
-        private Dictionary<Language, string[]> dict;
         private string username;
         private string repository;
+        private List<string> extentionsList;
         private long repId;
         private ConcurrentBag<Flag> flagList;
         private ConcurrentBag<RepositoryContent> bag;
         private ConcurrentBag<Download> dlList;
         private ConcurrentBag<RepositoryContent> retryList;
         private int counter;
-        private Language lang;
         private DatabaseEntities dbcontext;
 
         public GHDownloader(DatabaseEntities dbc)
         {
             client = new GitHubClient(new ProductHeaderValue("test"));
-            client.Credentials = new Credentials("");
+            client.Credentials = new Credentials("e17fc407563e1b9aae7a5b6be31b950e1ab48d1a");
             var bf = new BinaryFormatter();
-            using (FileStream fs = new FileStream("conf.dat", System.IO.FileMode.Open))
-            {
-                dict = (Dictionary<Language, string[]>)bf.Deserialize(fs);
-            }
+            
             bag = new ConcurrentBag<RepositoryContent>();
             dbcontext = dbc;
         }
@@ -43,7 +39,11 @@ namespace TApp
             foreach (Sourse sourse in dbcontext.Sourses.ToList())
             {
                 SetRepository(sourse.Url);
-                lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
+                extentionsList = new List<string>();
+                foreach (var item in sourse.Languages)
+                {
+                    extentionsList.AddRange(item.Extentions.Split(' '));
+                }
                 RepositoryDownload();
             }
             Console.WriteLine("The End");
@@ -68,7 +68,7 @@ namespace TApp
             foreach (var item in dbcontext.Downloads)
             {
                 if (item.RepositoryID == repId &&
-                    dict[lang].Contains(Path.GetExtension(item.Path)) &&
+                    extentionsList.Contains(Path.GetExtension(item.Path)) &&
                     !bag.Any(x => x.Path == item.Path))
                 {
                     dbcontext.Downloads.Remove(item);
@@ -100,8 +100,8 @@ namespace TApp
             var content = await client.Repository.Content.GetAllContents(username, repository, directory);
             foreach (var item in content)
             {
-                if (item.Type == ContentType.File && item.DownloadUrl != null
-                    && dict[lang].Contains(Path.GetExtension(item.DownloadUrl.ToString()).ToLower()))
+                if (item.Type == ContentType.File && item.DownloadUrl != null &&
+                    extentionsList.Contains(Path.GetExtension(item.DownloadUrl.ToString()).ToLower()))
                 {
                     bag.Add(item);
                 }
