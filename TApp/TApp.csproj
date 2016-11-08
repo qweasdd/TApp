@@ -83,10 +83,6 @@
     <Compile Include="Sourse.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Database_log.ldf">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <DependentUpon>Database.mdf</DependentUpon>
-    </Content>
     <None Include="App.config">
       <SubType>Designer</SubType>
     </None>

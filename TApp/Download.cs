@@ -16,7 +16,6 @@ namespace TApp
         [StringLength(500)]
         public string Path { get; set; }
 
-        [Required]
         public string Content { get; set; }
     }
 }
