@@ -28,8 +28,6 @@ namespace TApp
         {
             client = new GitHubClient(new ProductHeaderValue("test"));
             client.Credentials = new Credentials("");
-            var bf = new BinaryFormatter();
-            
             bag = new ConcurrentBag<RepositoryContent>();
             dbcontext = dbc;
         }
