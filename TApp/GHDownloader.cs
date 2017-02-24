@@ -2,12 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
-using System.Threading.Tasks;
 using Octokit;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Net;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Diagnostics;
+using System.Reflection;
+
 namespace TApp
 {
     public class GHDownloader
@@ -26,12 +27,14 @@ namespace TApp
 
         public GHDownloader(DatabaseEntities dbc)
         {
-            client = new GitHubClient(new ProductHeaderValue("test"));
-            client.Credentials = new Credentials("");
+            client = new GitHubClient(new ProductHeaderValue("test"))
+            {
+                Credentials = new Credentials("35c1c6be0476e4268da34803ed0d1aaa4d421b43")
+            };
             bag = new ConcurrentBag<RepositoryContent>();
             dbcontext = dbc;
         }
-        
+
         public void Download()
         {
             foreach (Sourse sourse in dbcontext.Sourses.ToList())
@@ -44,6 +47,8 @@ namespace TApp
                 }
                 RepositoryDownload();
             }
+
+            DownloadsFormat();
             Console.WriteLine("The End");
         }
 
@@ -128,7 +133,7 @@ namespace TApp
 
         private async void DCHelper(RepositoryContent rc)
         {
-            Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
+            var dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
 
             using (var webclient = new WebClient())
             {
@@ -138,7 +143,7 @@ namespace TApp
                     Console.WriteLine($"{counter} / {bag.Count}");
                 };
 
-                string tContent = "";
+                var tContent = string.Empty;
                 try
                 {
                     tContent = await webclient.DownloadStringTaskAsync(rc.DownloadUrl);
@@ -184,7 +189,7 @@ namespace TApp
 
         private async void RDCHelper(RepositoryContent rc)
         {
-            Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
+            var dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
 
             using (var webclient = new WebClient())
             {
@@ -195,7 +200,7 @@ namespace TApp
 
 
 
-                string tContent = "Downloading failed";
+                var tContent = "Downloading failed";
                 try
                 {
                     tContent = await webclient.DownloadStringTaskAsync(rc.DownloadUrl); ;
@@ -221,6 +226,31 @@ namespace TApp
                 }
                 counter++;
             }
+        }
+
+
+        private void DownloadsFormat() 
+        {
+            foreach (var item in dbcontext.Downloads)
+            {
+                using (var fs = new FileStream("temp.cs", System.IO.FileMode.Create))
+                using (var sw = new StreamWriter(fs))
+                {
+                    sw.Write(item.Content);
+                }
+
+                Process.Start($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\AStyle\\bin\\AStyle.exe",
+                    $"--style=allman {Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\temp.cs")
+                        .WaitForExit();
+
+                using (var fs = new FileStream("temp.cs", System.IO.FileMode.Open))
+                using (var sr = new StreamReader(fs))
+                {
+                    item.FContent = sr.ReadToEnd();
+                }
+            }
+
+            dbcontext.SaveChanges();
         }
 
     }

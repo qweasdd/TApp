@@ -7,14 +7,18 @@ using Octokit;
 using System.Threading;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Diagnostics;
+using System.Reflection;
+
 namespace TApp
 {
     class Program
     {
         static void Main(string[] args)
         {
-            
+
             Work();
+
             Console.ReadLine();
         }
 

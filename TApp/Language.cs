@@ -8,7 +8,6 @@ namespace TApp
 
     public partial class Language
     {
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         public Language()
         {
             Sourses = new HashSet<Sourse>();
@@ -22,8 +21,7 @@ namespace TApp
         [Required]
         [StringLength(100)]
         public string Extentions { get; set; }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
+        
         public virtual ICollection<Sourse> Sourses { get; set; }
     }
 }

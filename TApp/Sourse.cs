@@ -9,7 +9,6 @@ namespace TApp
     [Table("Sourse")]
     public partial class Sourse
     {
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         public Sourse()
         {
             Languages = new HashSet<Language>();
@@ -22,8 +21,7 @@ namespace TApp
         [Required]
         [StringLength(200)]
         public string Url { get; set; }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
+        
         public virtual ICollection<Language> Languages { get; set; }
     }
 }
