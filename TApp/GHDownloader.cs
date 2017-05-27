@@ -2,50 +2,53 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
-using System.Threading.Tasks;
 using Octokit;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Net;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Diagnostics;
+using System.Reflection;
+
 namespace TApp
 {
     public class GHDownloader
     {
         private GitHubClient client;
-        private Dictionary<Language, string[]> dict;
         private string username;
         private string repository;
+        private List<string> extentionsList;
         private long repId;
         private ConcurrentBag<Flag> flagList;
         private ConcurrentBag<RepositoryContent> bag;
         private ConcurrentBag<Download> dlList;
         private ConcurrentBag<RepositoryContent> retryList;
         private int counter;
-        private Language lang;
         private DatabaseEntities dbcontext;
 
         public GHDownloader(DatabaseEntities dbc)
         {
-            client = new GitHubClient(new ProductHeaderValue("test"));
-            client.Credentials = new Credentials("");
-            var bf = new BinaryFormatter();
-            using (FileStream fs = new FileStream("conf.dat", System.IO.FileMode.Open))
+            client = new GitHubClient(new ProductHeaderValue("test"))
             {
-                dict = (Dictionary<Language, string[]>)bf.Deserialize(fs);
-            }
+                Credentials = new Credentials("")
+            };
             bag = new ConcurrentBag<RepositoryContent>();
             dbcontext = dbc;
         }
-        
+
         public void Download()
         {
             foreach (Sourse sourse in dbcontext.Sourses.ToList())
             {
                 SetRepository(sourse.Url);
-                lang = (Octokit.Language)Enum.Parse(typeof(Octokit.Language), sourse.Language);
+                extentionsList = new List<string>();
+                foreach (var item in sourse.Languages)
+                {
+                    extentionsList.AddRange(item.Extentions.Split(' '));
+                }
                 RepositoryDownload();
             }
+
+            DownloadsFormat();
             Console.WriteLine("The End");
         }
 
@@ -68,7 +71,7 @@ namespace TApp
             foreach (var item in dbcontext.Downloads)
             {
                 if (item.RepositoryID == repId &&
-                    dict[lang].Contains(Path.GetExtension(item.Path)) &&
+                    extentionsList.Contains(Path.GetExtension(item.Path)) &&
                     !bag.Any(x => x.Path == item.Path))
                 {
                     dbcontext.Downloads.Remove(item);
@@ -100,8 +103,8 @@ namespace TApp
             var content = await client.Repository.Content.GetAllContents(username, repository, directory);
             foreach (var item in content)
             {
-                if (item.Type == ContentType.File && item.DownloadUrl != null
-                    && dict[lang].Contains(Path.GetExtension(item.DownloadUrl.ToString()).ToLower()))
+                if (item.Type == ContentType.File && item.DownloadUrl != null &&
+                    extentionsList.Contains(Path.GetExtension(item.DownloadUrl.ToString()).ToLower()))
                 {
                     bag.Add(item);
                 }
@@ -130,7 +133,7 @@ namespace TApp
 
         private async void DCHelper(RepositoryContent rc)
         {
-            Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
+            var dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
 
             using (var webclient = new WebClient())
             {
@@ -140,7 +143,7 @@ namespace TApp
                     Console.WriteLine($"{counter} / {bag.Count}");
                 };
 
-                string tContent = "";
+                var tContent = string.Empty;
                 try
                 {
                     tContent = await webclient.DownloadStringTaskAsync(rc.DownloadUrl);
@@ -186,7 +189,7 @@ namespace TApp
 
         private async void RDCHelper(RepositoryContent rc)
         {
-            Download dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
+            var dl = dbcontext.Downloads.FirstOrDefault(x => x.Path == rc.Path);
 
             using (var webclient = new WebClient())
             {
@@ -197,7 +200,7 @@ namespace TApp
 
 
 
-                string tContent = "Downloading failed";
+                var tContent = "Downloading failed";
                 try
                 {
                     tContent = await webclient.DownloadStringTaskAsync(rc.DownloadUrl); ;
@@ -223,6 +226,31 @@ namespace TApp
                 }
                 counter++;
             }
+        }
+
+
+        private void DownloadsFormat() 
+        {
+            foreach (var item in dbcontext.Downloads)
+            {
+                using (var fs = new FileStream("temp.cs", System.IO.FileMode.Create))
+                using (var sw = new StreamWriter(fs))
+                {
+                    sw.Write(item.Content);
+                }
+
+                Process.Start($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\AStyle\\bin\\AStyle.exe",
+                    $"--style=allman {Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\temp.cs")
+                        .WaitForExit();
+
+                using (var fs = new FileStream("temp.cs", System.IO.FileMode.Open))
+                using (var sr = new StreamReader(fs))
+                {
+                    item.FContent = sr.ReadToEnd();
+                }
+            }
+
+            dbcontext.SaveChanges();
         }
 
     }
