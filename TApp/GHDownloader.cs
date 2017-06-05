@@ -29,7 +29,7 @@ namespace TApp
         {
             client = new GitHubClient(new ProductHeaderValue("test"))
             {
-                Credentials = new Credentials("9bedc284fffd5c6a53166c1678f065d45d6190d1")
+               Credentials = new Credentials("")
             };
             bag = new ConcurrentBag<RepositoryContent>();
             dbcontext = dbc;
@@ -49,7 +49,6 @@ namespace TApp
             }
 
             DownloadsFormat();
-            ParseCode();
             Console.WriteLine("The End");
         }
 
@@ -244,17 +243,6 @@ namespace TApp
             dbcontext.SaveChanges();
         }
 
-        private void ParseCode()
-        {
-            int counter = 0;
-            foreach (var item in dbcontext.Downloads)
-            {
-                var qq = new CodeFile(item.FContent);
-                Console.WriteLine(item.Path);
-                qq.ParseFile();
-                Console.WriteLine(counter++);
-            }
-        }
 
     }
 }
