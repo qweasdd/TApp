@@ -29,7 +29,7 @@ namespace TApp
         {
             client = new GitHubClient(new ProductHeaderValue("test"))
             {
-                Credentials = new Credentials("35c1c6be0476e4268da34803ed0d1aaa4d421b43")
+                Credentials = new Credentials("9bedc284fffd5c6a53166c1678f065d45d6190d1")
             };
             bag = new ConcurrentBag<RepositoryContent>();
             dbcontext = dbc;
@@ -49,6 +49,7 @@ namespace TApp
             }
 
             DownloadsFormat();
+            ParseCode();
             Console.WriteLine("The End");
         }
 
@@ -229,28 +230,30 @@ namespace TApp
         }
 
 
+        
+
         private void DownloadsFormat() 
         {
+            int counter = 0;
             foreach (var item in dbcontext.Downloads)
             {
-                using (var fs = new FileStream("temp.cs", System.IO.FileMode.Create))
-                using (var sw = new StreamWriter(fs))
-                {
-                    sw.Write(item.Content);
-                }
-
-                Process.Start($"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\AStyle\\bin\\AStyle.exe",
-                    $"--style=allman {Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\temp.cs")
-                        .WaitForExit();
-
-                using (var fs = new FileStream("temp.cs", System.IO.FileMode.Open))
-                using (var sr = new StreamReader(fs))
-                {
-                    item.FContent = sr.ReadToEnd();
-                }
+               item.FContent = CodeFormat.Format(item.Content);
+                Console.WriteLine(counter++);
             }
 
             dbcontext.SaveChanges();
+        }
+
+        private void ParseCode()
+        {
+            int counter = 0;
+            foreach (var item in dbcontext.Downloads)
+            {
+                var qq = new CodeFile(item.FContent);
+                Console.WriteLine(item.Path);
+                qq.ParseFile();
+                Console.WriteLine(counter++);
+            }
         }
 
     }
