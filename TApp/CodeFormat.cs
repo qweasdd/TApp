@@ -62,7 +62,7 @@ namespace TApp
                     {
                         if (file[i][j] == '\"')
                         {
-                            if (file[i][j - 1] == '\\')
+                            if (j > 0 && file[i][j - 1] == '\\')
                             {
                                 int k = j - 1;
                                 while (file[i][k] == '\\')
@@ -87,6 +87,10 @@ namespace TApp
                         if (j != file[i].Length - 1 && file[i][j] == '*' && file[i][j + 1] == '/')
                         {
                             isComm = false;
+                            res = res + " " + file[i].Substring(0, j + 2);
+                            result.Add(res);
+                            res = "";
+
                             if ((j + 2) < file[i].Length)
                             {
                                 file[i] = file[i].Substring(j + 2);
@@ -99,6 +103,10 @@ namespace TApp
                                 oneMoreTime = true;
                                 break;
                             }
+
+                            res = res + " " + file[i].Substring(0, j + 2);
+                            result.Add(res);
+                            res = "";
                         }
                     }
                     else if (isElseDir)
@@ -137,7 +145,7 @@ namespace TApp
                     }
                     else if (file[i][j] == '\'')
                     {
-                        if (file[i][j + 1] == '\\')
+                        if (file[i].Length >= j + 2 && file[i][j + 1] == '\\')
                             j += 3;
                         else
                             j += 2;
@@ -170,6 +178,8 @@ namespace TApp
                         if (temp.Trim(new char[] { ' ', '\t' }) != string.Empty)
                             res = res + " " + temp;
                         oneMoreTime = true;
+                        result.Add(file[i].Substring(j));
+                        res = "";
                         break;
                     }
                     else
@@ -247,7 +257,8 @@ namespace TApp
                             result.Add(res);
                         res = "";
                     }
-                    else if (!isComm && ! isElseDir)
+                    //else if (!isComm && ! isElseDir)
+                    else if (!isElseDir)
                     {
                         if (res.Trim(' ', '\t') != string.Empty)
                             res = res + " " + file[i].TrimStart(' ', '\t');

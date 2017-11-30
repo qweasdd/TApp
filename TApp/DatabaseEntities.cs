@@ -13,19 +13,17 @@ namespace TApp
         }
 
         public virtual DbSet<Download> Downloads { get; set; }
-        public virtual DbSet<Language> Languages { get; set; }
         public virtual DbSet<Sourse> Sourses { get; set; }
+
+        public virtual DbSet<Data> Data { get; set; }
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Language>()
-                .Property(e => e.Language1)
-                .IsUnicode(false);
+            modelBuilder.Entity<Download>()
+               .HasOptional(e => e.Data)
+               .WithRequired(e => e.Download);
 
-            modelBuilder.Entity<Language>()
-                .HasMany(e => e.Sourses)
-                .WithMany(e => e.Languages)
-                .Map(m => m.ToTable("RepositoryLanguages").MapLeftKey("Language").MapRightKey("RepositoryID"));
+            
 
             modelBuilder.Entity<Sourse>()
                 .Property(e => e.Url)

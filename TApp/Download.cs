@@ -16,10 +16,11 @@ namespace TApp
         [StringLength(500)]
         public string Path { get; set; }
 
+        [Required]
         public string Content { get; set; }
 
         public string FContent { get; set; }
-        
 
+        public virtual Data Data { get; set; }
     }
 }

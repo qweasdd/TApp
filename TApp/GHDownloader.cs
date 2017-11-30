@@ -24,27 +24,33 @@ namespace TApp
         private ConcurrentBag<RepositoryContent> retryList;
         private int counter;
         private DatabaseEntities dbcontext;
+        private bool isLimitExceeded;
 
         public GHDownloader(DatabaseEntities dbc)
         {
             client = new GitHubClient(new ProductHeaderValue("test"))
             {
-               Credentials = new Credentials("")
+                Credentials = new Credentials(SecretData.Token)
             };
             bag = new ConcurrentBag<RepositoryContent>();
             dbcontext = dbc;
+
+            extentionsList = new List<string>() { ".cs" };
+            isLimitExceeded = false;
         }
 
         public void Download()
         {
             foreach (Sourse sourse in dbcontext.Sourses.ToList())
             {
+                
                 SetRepository(sourse.Url);
-                extentionsList = new List<string>();
-                foreach (var item in sourse.Languages)
+
+                if (isLimitExceeded == true)
                 {
-                    extentionsList.AddRange(item.Extentions.Split(' '));
+                    break;
                 }
+
                 RepositoryDownload();
             }
 
@@ -59,7 +65,18 @@ namespace TApp
             var t = uri.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             username = t[0];
             repository = t[1];
-            repId = client.Repository.Get(username, repository).GetAwaiter().GetResult().Id;
+            try
+            {
+                repId = client.Repository.Get(username, repository).GetAwaiter().GetResult().Id;
+            }
+            catch (Exception e)
+            {
+                if (e is RateLimitExceededException)
+                {
+                    isLimitExceeded = true;
+                    return;
+                }
+            }
         }
 
         private void RepositoryDownload()
@@ -89,7 +106,10 @@ namespace TApp
         public void SetBagOfContent()
         {
             flagList = new ConcurrentBag<Flag>();
-            SBCHelper("/");
+            if (!isLimitExceeded)
+            {
+                SBCHelper("/");
+            }
 
             while (!flagList.All(x => x.IsCompleted))
             { Thread.Sleep(1000); }
@@ -100,18 +120,31 @@ namespace TApp
         {
             Flag flag = new Flag();
             flagList.Add(flag);
-            var content = await client.Repository.Content.GetAllContents(username, repository, directory);
-            foreach (var item in content)
+            try
             {
-                if (item.Type == ContentType.File && item.DownloadUrl != null &&
-                    extentionsList.Contains(Path.GetExtension(item.DownloadUrl.ToString()).ToLower()))
+                var content = await client.Repository.Content.GetAllContents(username, repository, directory);
+                foreach (var item in content)
                 {
-                    bag.Add(item);
+                    if (item.Type == ContentType.File && item.DownloadUrl != null &&
+                        extentionsList.Contains(Path.GetExtension(item.DownloadUrl.ToString()).ToLower()))
+                    {
+                        bag.Add(item);
+                    }
+                    else
+                    if (!isLimitExceeded && item.Type == ContentType.Dir)
+                    {
+                        SBCHelper(item.Path);
+                    }
                 }
-                else
-                if (item.Type == ContentType.Dir)
+            }
+
+            catch (Exception e)
+            {
+                if (e is RateLimitExceededException)
                 {
-                    SBCHelper(item.Path);
+                    isLimitExceeded = true;
+                    flag.IsCompleted = true;
+                    return;
                 }
             }
             flag.IsCompleted = true;
@@ -122,12 +155,17 @@ namespace TApp
             counter = 1;
             dlList = new ConcurrentBag<Download>();
             retryList = new ConcurrentBag<RepositoryContent>();
+
             foreach (var item in bag)
             {
                 DCHelper(item);
             }
+            
             while (counter < bag.Count + 1)
-            { Thread.Sleep(100); }
+            {
+                Thread.Sleep(100);
+            }
+
             dbcontext.Downloads.AddRange(dlList);
         }
 
@@ -151,25 +189,27 @@ namespace TApp
                 catch
                 {
                     retryList.Add(rc);
-                    counter++;
+                    Interlocked.Increment(ref counter);
                     return;
                 }
 
-
-                if (dl == null)
+                if (tContent != string.Empty)
                 {
-                    dlList.Add(new Download()
+                    if (dl == null)
                     {
-                        RepositoryID = repId,
-                        Path = rc.Path,
-                        Content = tContent
-                    });
+                        dlList.Add(new Download()
+                        {
+                            RepositoryID = repId,
+                            Path = rc.Path,
+                            Content = tContent
+                        });
+                    }
+                    else
+                    {
+                        if (dl.Content != tContent) dl.Content = tContent;
+                    }
                 }
-                else
-                {
-                    if (dl.Content != tContent) dl.Content = tContent;
-                }
-                counter++;
+                Interlocked.Increment(ref counter);
             }
         }
 
@@ -224,7 +264,7 @@ namespace TApp
                 {
                     if (dl.Content != tContent) dl.Content = tContent;
                 }
-                counter++;
+                Interlocked.Increment(ref counter);
             }
         }
 
@@ -233,12 +273,15 @@ namespace TApp
 
         private void DownloadsFormat() 
         {
-            int counter = 0;
             foreach (var item in dbcontext.Downloads)
             {
-               item.FContent = CodeFormat.Format(item.Content);
-                Console.WriteLine(counter++);
+                if (item.FContent is null)
+                {
+                    item.FContent = CodeFormat.Format(item.Content);
+                    Console.WriteLine(item.FContent);
+                }
             }
+            
 
             dbcontext.SaveChanges();
         }

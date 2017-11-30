@@ -11,7 +11,6 @@ namespace TApp
     {
         public Sourse()
         {
-            Languages = new HashSet<Language>();
         }
 
         [Key]
@@ -22,6 +21,5 @@ namespace TApp
         [StringLength(200)]
         public string Url { get; set; }
         
-        public virtual ICollection<Language> Languages { get; set; }
     }
 }
